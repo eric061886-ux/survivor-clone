@@ -1,52 +1,39 @@
-:root {
-    --primary-color: #4ade80; /* 螢光綠 */
-    --danger-color: #ef4444;  /* 警告紅 */
-    --xp-color: #fbbf24;      /* 經驗黃 */
-    --bg-dark: #0f172a;       /* 深藍底 */
-    --ui-bg: rgba(30, 41, 59, 0.7);
-}
-
+/* --- 基礎樣式 --- */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
     user-select: none;
-    touch-action: none; /* 防止手機縮放與滾動 */
+    touch-action: none;
 }
 
 body {
-    background-color: #000;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    background: #0f172a;
+    font-family: 'Outfit', -apple-system, sans-serif;
+    color: #fff;
     overflow: hidden;
+    width: 100vw;
+    height: 100vh;
 }
 
 #game-container {
     position: relative;
     width: 100%;
-    max-width: 450px; /* 模擬手機寬度 */
-    height: 100vh;
-    background-color: var(--bg-dark);
-    box-shadow: 0 0 50px rgba(0,0,0,0.5);
-    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 canvas {
     display: block;
-    width: 100%;
-    height: 100%;
 }
 
-/* UI 覆蓋層 */
+/* --- UI Overlay --- */
 #ui-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    padding: 20px;
+    top: 20px;
+    left: 20px;
+    right: 20px;
     z-index: 10;
     pointer-events: none;
 }
@@ -54,55 +41,62 @@ canvas {
 .stats-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
 }
 
 #level-container {
-    background: var(--ui-bg);
-    padding: 4px 10px;
+    background: rgba(15, 23, 42, 0.8);
+    padding: 5px 12px;
     border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.label {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+#level-value {
     font-weight: bold;
-    font-size: 14px;
-    backdrop-filter: blur(5px);
+    color: #4ade80;
 }
 
 #exp-bar-bg {
     flex-grow: 1;
-    height: 12px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 6px;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
     overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.1);
 }
 
 #exp-bar-fill {
     width: 0%;
     height: 100%;
-    background: linear-gradient(90deg, #f59e0b, #fbbf24);
-    box-shadow: 0 0 10px var(--xp-color);
+    background: linear-gradient(90deg, #4ade80, #22c55e);
     transition: width 0.3s ease;
 }
 
 #timer {
-    color: #fff;
     font-family: monospace;
     font-size: 18px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    background: rgba(15, 23, 42, 0.8);
+    padding: 2px 10px;
+    border-radius: 8px;
 }
 
 #kill-count {
-    color: rgba(255,255,255,0.6);
-    font-size: 12px;
-    margin-top: 5px;
-    margin-left: 55px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #94a3b8;
 }
 
-/* 虛擬搖桿 */
+/* --- 虛擬搖桿 --- */
 #joystick-wrapper {
     position: absolute;
-    bottom: 80px;
+    bottom: 50px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
@@ -111,89 +105,121 @@ canvas {
 #joystick-base {
     width: 120px;
     height: 120px;
-    background: rgba(255,255,255,0.1);
-    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(5px);
 }
 
 #joystick-stick {
     width: 50px;
     height: 50px;
-    background: rgba(255,255,255,0.3);
-    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(255, 255, 255, 0.8);
     border-radius: 50%;
-    box-shadow: 0 0 20px rgba(255,255,255,0.2);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
 }
 
-/* 升級選單 */
-#upgrade-menu {
+/* --- Menu & Overlays --- */
+#overlay-container {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.8);
+    pointer-events: none;
+    z-index: 100;
+}
+
+.menu-content {
+    background: rgba(15, 23, 42, 0.95);
+    padding: 30px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    max-width: 90%;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+}
+
+#start-screen, #game-over-menu, #upgrade-menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 100;
-    opacity: 1;
-    transition: opacity 0.3s ease;
 }
 
 .hidden {
     display: none !important;
 }
 
-.menu-content {
-    width: 85%;
-    background: var(--ui-bg);
-    padding: 25px;
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.2);
-    text-align: center;
-    backdrop-filter: blur(10px);
+h1 {
+    font-size: 28px;
+    margin-bottom: 10px;
+    background: linear-gradient(to right, #4ade80, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-.menu-content h2 {
-    color: #fff;
+h2 {
     margin-bottom: 20px;
-    font-size: 20px;
+    font-size: 22px;
 }
 
 #upgrade-options {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    margin-top: 20px;
 }
 
 .upgrade-item {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.05);
     padding: 15px;
     border-radius: 12px;
-    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     text-align: left;
 }
 
 .upgrade-item:hover {
-    background: rgba(74, 222, 128, 0.1);
-    border-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: #4ade80;
+    transform: scale(1.02);
 }
 
 .upgrade-item h3 {
-    color: var(--primary-color);
+    color: #4ade80;
     font-size: 16px;
     margin-bottom: 4px;
 }
 
 .upgrade-item p {
-    font-size: 13px;
-    opacity: 0.7;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.action-button {
+    margin-top: 20px;
+    background: #4ade80;
+    color: #0f172a;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.action-button:active {
+    transform: scale(0.95);
 }

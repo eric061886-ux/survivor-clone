@@ -39,12 +39,31 @@
             </div>
         </div>
 
-        <!-- 升級選單 (預設隱藏) -->
-        <div id="upgrade-menu" class="hidden">
-            <div class="menu-content">
-                <h2>選擇一項升級</h2>
-                <div id="upgrade-options">
-                    <!-- 動態插入選項 -->
+        <!-- 覆蓋層容器 -->
+        <div id="overlay-container">
+            <!-- 升級選單 -->
+            <div id="upgrade-menu" class="hidden">
+                <div class="menu-content">
+                    <h2>技能提升</h2>
+                    <div id="upgrade-options"></div>
+                </div>
+            </div>
+
+            <!-- 開始畫面 -->
+            <div id="start-screen">
+                <div class="menu-content">
+                    <h1>噠噠特工練習生</h1>
+                    <p>挑戰你的生存極限</p>
+                    <button id="start-button" class="action-button">開始遊戲 (全螢幕)</button>
+                </div>
+            </div>
+
+            <!-- 遊戲結束畫面 -->
+            <div id="game-over-menu" class="hidden">
+                <div class="menu-content">
+                    <h2 style="color: #ef4444;">遊戲結束</h2>
+                    <p id="final-stats">擊殺數: 0</p>
+                    <button id="restart-button" class="action-button">再來一局</button>
                 </div>
             </div>
         </div>
