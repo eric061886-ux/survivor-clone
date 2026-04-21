@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>噠噠特工練習生 - Survivor Clone</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 頂部資訊欄 -->
+        <div id="ui-overlay">
+            <div class="stats-row">
+                <div id="level-container">
+                    <span class="label">LV.</span>
+                    <span id="level-value">1</span>
+                </div>
+                <div id="exp-bar-bg">
+                    <div id="exp-bar-fill"></div>
+                </div>
+                <div id="timer">00:00</div>
+            </div>
+            <div id="hp-row" style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                <span style="color: #fff; font-size: 14px; font-weight: bold;">HP</span>
+                <div id="hp-bar-bg" style="flex-grow: 1; height: 10px; background: rgba(0,0,0,0.5); border-radius: 5px; overflow: hidden; border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <div id="hp-bar-fill" style="width: 100%; height: 100%; background: #ef4444; transition: width 0.2s ease;"></div>
+                </div>
+            </div>
+            <div id="kill-count">擊殺: 0</div>
+        </div>
+
+        <!-- 遊戲畫布 -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- 虛擬搖桿 -->
+        <div id="joystick-wrapper">
+            <div id="joystick-base">
+                <div id="joystick-stick"></div>
+            </div>
+        </div>
+
+        <!-- 升級選單 (預設隱藏) -->
+        <div id="upgrade-menu" class="hidden">
+            <div class="menu-content">
+                <h2>選擇一項升級</h2>
+                <div id="upgrade-options">
+                    <!-- 動態插入選項 -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
