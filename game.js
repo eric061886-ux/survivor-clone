@@ -1,6 +1,6 @@
 /**
  * 噠噠特工練習生 - Core Game Logic
- * 更新：徹底修復陣列膨脹引起的效能問題, 子彈速度校準
+ * 更新：階段性動態難度曲線 (1/3/5 隻生成邏輯)
  */
 
 const canvas = document.getElementById('gameCanvas');
@@ -12,7 +12,7 @@ const CONFIG = {
     PLAYER_MAX_HP: 10,
     PLAYER_HIT_COOLDOWN: 200, 
     ENEMY_BASE_SPEED: 60,
-    BULLET_SPEED: 160,         // 降速並穩定化
+    BULLET_SPEED: 160,
     FIRE_RATE: 800,
     BOOMERANG_SPEED: 260,
     BOOMERANG_FIRE_RATE: 2000,
@@ -59,7 +59,6 @@ class ObjectPool {
 // --- 傷害數字 ---
 class DamageText {
     constructor() { this.x = 0; this.y = 0; this.text = ""; this.color = "#fff"; this.active = false; this.life = 0; }
-    reset() {} // 預留
     spawn(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.active = true; this.life = 0.6; }
     update(dt) { if (!this.active) return; this.y -= 50 * dt; this.life -= dt; if (this.life <= 0) this.active = false; }
     draw() {
@@ -121,7 +120,7 @@ class Enemy extends Entity {
 
 class Bullet extends Entity {
     constructor() { super(); this.radius = 5; this.vx = 0; this.vy = 0; this.spawnTime = 0; this.damage = 1; }
-    reset() { this.vx = 0; this.vy = 0; this.spawnTime = Date.now(); } // 確保重置
+    reset() { this.vx = 0; this.vy = 0; this.spawnTime = Date.now(); }
     update(dt) { if (!this.active) return; this.x += this.vx * dt; this.y += this.vy * dt; if (Date.now() - this.spawnTime > 3000) this.active = false; }
     draw() { if (!this.active) return; const s = this.getScreenPos(); ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(s.x, s.y, this.radius, 0, Math.PI * 2); ctx.fill(); }
 }
@@ -152,12 +151,11 @@ class Boomerang extends Entity {
 
 class XPGem extends Entity {
     constructor() { super(); this.radius = 6; this.value = 1; }
-    reset() {}
     update(px, py, dt) { if (!this.active) return; const dx = px - this.x, dy = py - this.y, d = Math.sqrt(dx * dx + dy * dy); if (d < CONFIG.XP_ATTRACT_DIST) { this.x += (dx / d) * 420 * dt; this.y += (dy / d) * 420 * dt; } }
     draw() { if (!this.active) return; const s = this.getScreenPos(); ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.rect(s.x - 4, s.y - 4, 8, 8); ctx.fill(); }
 }
 
-// --- 初始化系統 ---
+// --- 初始化 ---
 const player = new Player();
 const enemyPool = new ObjectPool(() => new Enemy(), 500);
 const bulletPool = new ObjectPool(() => new Bullet(), 100);
@@ -274,23 +272,37 @@ function gameLoop(timestamp) {
         gameState.camera.x = player.x - canvas.width / 2; gameState.camera.y = player.y - canvas.height / 2;
         
         if (timestamp - lastTimeUpdate > 1000) { gameState.time++; lastTimeUpdate = timestamp; gameState.currentSpawnChance = Math.min(CONFIG.MAX_SPAWN_CHANCE, CONFIG.INITIAL_SPAWN_CHANCE + Math.floor(gameState.time / 10) * CONFIG.CHANCE_INC_PER_10S); updateUI(); }
-        if (timestamp - lastSpawnAttempt > CONFIG.SPAWN_INTERVAL) { if (Math.random() < gameState.currentSpawnChance) { const r = Math.random(), c = r < 0.1 ? 5 : (r < 0.3 ? 3 : 1); for (let i = 0; i < c; i++) spawnEnemy(); } lastSpawnAttempt = timestamp; }
+        
+        if (timestamp - lastSpawnAttempt > CONFIG.SPAWN_INTERVAL) {
+            if (Math.random() < gameState.currentSpawnChance) {
+                const roll = Math.random();
+                let count = 1;
+                
+                if (gameState.time < 30) {
+                    // 0-30s: 90% 1隻, 10% 2隻
+                    count = roll < 0.9 ? 1 : 2;
+                } else if (gameState.time < 120) {
+                    // 30-120s: 80% 1隻, 10% 2隻, 10% 3隻
+                    if (roll < 0.8) count = 1;
+                    else if (roll < 0.9) count = 2;
+                    else count = 3;
+                } else {
+                    // >120s: 70% 1隻, 20% 3隻, 10% 5隻
+                    if (roll < 0.7) count = 1;
+                    else if (roll < 0.9) count = 3;
+                    else count = 5;
+                }
+                
+                for (let i = 0; i < count; i++) spawnEnemy();
+            }
+            lastSpawnAttempt = timestamp;
+        }
+
         if (timestamp - lastFire > CONFIG.FIRE_RATE) { fireBullet(); lastFire = timestamp; }
         if (timestamp - lastBoomerangFire > CONFIG.BOOMERANG_FIRE_RATE) { fireBoomerang(); lastBoomerangFire = timestamp; }
 
-        activeEnemies.forEach(e => e.update(player.x, player.y, dt));
-        activeBullets.forEach(b => b.update(dt));
-        activeBoomerangs.forEach(b => b.update(player.x, player.y, dt));
-        activeXPGems.forEach(g => g.update(player.x, player.y, dt));
-        activeDamageTexts.forEach(t => t.update(dt));
-        
-        // --- 核心優化：清理陣列 ---
-        activeEnemies = activeEnemies.filter(e => e.active);
-        activeBullets = activeBullets.filter(b => b.active);
-        activeBoomerangs = activeBoomerangs.filter(b => b.active);
-        activeXPGems = activeXPGems.filter(g => g.active);
-        activeDamageTexts = activeDamageTexts.filter(t => t.active);
-        
+        activeEnemies.forEach(e => e.update(player.x, player.y, dt)); activeBullets.forEach(b => b.update(dt)); activeBoomerangs.forEach(b => b.update(player.x, player.y, dt)); activeXPGems.forEach(g => g.update(player.x, player.y, dt)); activeDamageTexts.forEach(t => t.update(dt));
+        activeEnemies = activeEnemies.filter(e => e.active); activeBullets = activeBullets.filter(b => b.active); activeBoomerangs = activeBoomerangs.filter(b => b.active); activeXPGems = activeXPGems.filter(g => g.active); activeDamageTexts = activeDamageTexts.filter(t => t.active);
         checkCollisions();
     }
     drawBackground(); activeXPGems.forEach(g => g.draw()); activeBullets.forEach(b => b.draw()); activeBoomerangs.forEach(b => b.draw()); activeEnemies.forEach(e => e.draw()); activeDamageTexts.forEach(t => t.draw()); player.draw(); requestAnimationFrame(gameLoop);
