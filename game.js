@@ -1,6 +1,6 @@
 /**
  * 噠噠特工練習生 - Core Game Logic
- * 更新：迴旋鏢固定距離折返, 怪物小隊生成 (1/3/5 隻)
+ * 更新：手感優化 (速度 0.8x), 背景亮度提升, 怪物速度鎖定
  */
 
 const canvas = document.getElementById('gameCanvas');
@@ -8,13 +8,13 @@ const ctx = canvas.getContext('2d');
 
 // --- 遊戲設定 ---
 const CONFIG = {
-    PLAYER_SPEED: 3,
+    PLAYER_SPEED: 2.4,         // 原 3 * 0.8
     PLAYER_MAX_HP: 10,
     PLAYER_HIT_COOLDOWN: 200, 
-    ENEMY_BASE_SPEED: 1.3,
-    BULLET_SPEED: 9,
+    ENEMY_BASE_SPEED: 0.9,     // 降至約 0.9, 確保手機上不至於反應不及
+    BULLET_SPEED: 7.2,         // 原 9 * 0.8
     FIRE_RATE: 400, 
-    BOOMERANG_SPEED: 7,        // 稍微提升速度感
+    BOOMERANG_SPEED: 5.6,      // 原 7 * 0.8
     BOOMERANG_FIRE_RATE: 2000,
     SPAWN_INTERVAL: 1000,
     INITIAL_SPAWN_CHANCE: 0.5,
@@ -151,7 +151,7 @@ class Enemy extends Entity {
     reset() {
         this.hp = CONFIG.MONSTER_HP;
         this.flashFrames = 0;
-        this.speed = CONFIG.ENEMY_BASE_SPEED;
+        this.speed = CONFIG.ENEMY_BASE_SPEED; // 絕對固定
     }
 
     update(playerX, playerY) {
@@ -160,6 +160,7 @@ class Enemy extends Entity {
         const dy = playerY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0) {
+            // 修正：使用固定的速度向量，不隨玩家移動速度影響
             this.x += (dx / dist) * this.speed;
             this.y += (dy / dist) * this.speed;
         }
@@ -170,7 +171,6 @@ class Enemy extends Entity {
     draw() {
         if (!this.active) return;
         const screen = this.getScreenPos();
-        // 怪物中心點在畫面內才畫 (保持 User 要求的精準判定)
         const isCenterIn = screen.x >= 0 && screen.x <= canvas.width && screen.y >= 0 && screen.y <= canvas.height;
         if (!isCenterIn) return;
 
@@ -229,12 +229,9 @@ class Boomerang extends Entity {
         this.radius = 20;
         this.vx = 0;
         this.vy = 0;
-        this.startX = 0;
-        this.startY = 0;
         this.damage = 1;
         this.returning = false;
         this.rotation = 0;
-        // 折返距離設定為螢幕對角線或最大寬度的一半
         this.returnThreshold = 0; 
     }
 
@@ -242,7 +239,6 @@ class Boomerang extends Entity {
         this.returning = false;
         this.rotation = 0;
         this.returnThreshold = Math.max(canvas.width, canvas.height) / 2 + 50;
-        
         const level = gameState.boomerangLevel;
         this.radius = 20 * (1 + (level - 1) * 0.5);
         this.damage = 1 + (level - 1) * 0.5;
@@ -250,12 +246,10 @@ class Boomerang extends Entity {
 
     update(playerX, playerY) {
         if (!this.active) return;
-        
         if (!this.returning) {
             this.x += this.vx;
             this.y += this.vy;
             const distFromStart = Math.sqrt((this.x - playerX)**2 + (this.y - playerY)**2);
-            // 飛到邊界距離折返
             if (distFromStart > this.returnThreshold) this.returning = true;
         } else {
             const dx = playerX - this.x;
@@ -267,7 +261,7 @@ class Boomerang extends Entity {
             this.y += this.vy;
             if (dist < 30) this.active = false;
         }
-        this.rotation += 0.35; 
+        this.rotation += 0.3; 
     }
 
     draw() {
@@ -278,7 +272,6 @@ class Boomerang extends Entity {
         ctx.fillStyle = '#a855f7';
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#a855f7';
-        
         const s = this.radius / 10;
         ctx.beginPath();
         ctx.moveTo(-15 * s, -5 * s);
@@ -320,7 +313,7 @@ class XPGem extends Entity {
 
 // --- 初始化 ---
 const player = new Player();
-const enemyPool = new ObjectPool(() => new Enemy(), 500); // 增加池大小以應對群組生成
+const enemyPool = new ObjectPool(() => new Enemy(), 500); 
 const bulletPool = new ObjectPool(() => new Bullet(), 100);
 const boomerangPool = new ObjectPool(() => new Boomerang(), 10);
 const xpPool = new ObjectPool(() => new XPGem(), 500);
@@ -331,10 +324,11 @@ let activeBoomerangs = [];
 let activeXPGems = [];
 
 function drawBackground() {
+    // 亮化背景設定
     const offsetX = -gameState.camera.x % CONFIG.GRID_SIZE;
     const offsetY = -gameState.camera.y % CONFIG.GRID_SIZE;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)'; // 網格調亮
+    ctx.lineWidth = 1.5;
     for (let x = offsetX; x < canvas.width; x += CONFIG.GRID_SIZE) {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
     }
@@ -405,9 +399,7 @@ function fireBullet() {
     activeEnemies.forEach(e => {
         if (!e.active) return;
         const screen = e.getScreenPos();
-        // 怪物中心在畫面內才射擊
         if (screen.x < 0 || screen.x > canvas.width || screen.y < 0 || screen.y > canvas.height) return;
-        
         const d = Math.sqrt((e.x - player.x)**2 + (e.y - player.y)**2);
         if (d < minDist) { minDist = d; closest = e; }
     });
@@ -427,7 +419,7 @@ function fireBoomerang() {
     if (!gameState.hasBoomerang || gameState.upgradeMenuOpen) return;
     const b = boomerangPool.get();
     if (b) {
-        b.x = player.x; b.y = player.y; b.startX = player.x; b.startY = player.y;
+        b.x = player.x; b.y = player.y;
         let target = null;
         let minDist = Infinity;
         activeEnemies.forEach(e => {
@@ -534,8 +526,8 @@ function showUpgradeMenu() {
         div.innerHTML = `<h3>${title}</h3><p>${desc}</p>`;
         div.onclick = () => {
             menu.classList.add('hidden'); gameState.upgradeMenuOpen = false;
-            if (u.id === 'speed') CONFIG.PLAYER_SPEED += 0.5;
-            if (u.id === 'kunai') { CONFIG.FIRE_RATE *= 0.85; CONFIG.BULLET_SPEED += 1; }
+            if (u.id === 'speed') CONFIG.PLAYER_SPEED += 0.4; // 同步放慢
+            if (u.id === 'kunai') { CONFIG.FIRE_RATE *= 0.85; CONFIG.BULLET_SPEED += 0.8; }
             if (u.id === 'magnet') CONFIG.XP_ATTRACT_DIST += 50;
             if (u.id === 'boomerang') { gameState.hasBoomerang = true; gameState.boomerangLevel++; }
         };
@@ -562,7 +554,8 @@ let lastTimeUpdate = 0;
 
 function gameLoop(timestamp) {
     if (!gameState.running) return;
-    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 背景稍微調亮
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!gameState.upgradeMenuOpen) {
         player.x += joystickData.x * CONFIG.PLAYER_SPEED;
         player.y += joystickData.y * CONFIG.PLAYER_SPEED;
@@ -578,7 +571,6 @@ function gameLoop(timestamp) {
 
         if (timestamp - lastSpawnAttempt > CONFIG.SPAWN_INTERVAL) {
             if (Math.random() < gameState.currentSpawnChance) {
-                // 新的生成規則：70% 出1隻, 20% 出3隻, 10% 出5隻
                 const roll = Math.random();
                 let count = 1;
                 if (roll < 0.1) count = 5;
