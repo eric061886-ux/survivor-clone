@@ -1,20 +1,20 @@
 /**
  * 噠噠特工練習生 - Core Game Logic
- * 更新：DeltaTime 移動修正, 裝置選擇, 修正物件不消失 Bug
+ * 更新：平衡性微調 - 子彈降速, 角色提速, 電腦版比例優化
  */
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- 遊戲設定 (數值將與 DeltaTime 結合，改為 每秒像素) ---
+// --- 遊戲設定 ---
 const CONFIG = {
-    PLAYER_SPEED: 144,         // 原 2.4 * 60 (假設 60fps)
+    PLAYER_SPEED: 200,         // 提速：從 144 -> 200
     PLAYER_MAX_HP: 10,
     PLAYER_HIT_COOLDOWN: 200, 
-    ENEMY_BASE_SPEED: 54,      // 原 0.9 * 60
-    BULLET_SPEED: 345,         // 原 5.76 * 60
+    ENEMY_BASE_SPEED: 54,
+    BULLET_SPEED: 220,         // 降速：從 345 -> 220
     FIRE_RATE: 800,
-    BOOMERANG_SPEED: 336,      // 原 5.6 * 60
+    BOOMERANG_SPEED: 300,      // 稍微降一點
     BOOMERANG_FIRE_RATE: 2000,
     SPAWN_INTERVAL: 1000,
     INITIAL_SPAWN_CHANCE: 0.5,
@@ -59,23 +59,13 @@ class ObjectPool {
 // --- 傷害數字系統 ---
 class DamageText {
     constructor() { this.x = 0; this.y = 0; this.text = ""; this.color = "#fff"; this.active = false; this.life = 0; }
-    spawn(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.active = true; this.life = 0.6; } // 0.6 秒壽命
-    update(dt) {
-        if (!this.active) return;
-        this.y -= 50 * dt; // 向上飄
-        this.life -= dt;
-        if (this.life <= 0) this.active = false;
-    }
+    spawn(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.active = true; this.life = 0.6; }
+    update(dt) { if (!this.active) return; this.y -= 50 * dt; this.life -= dt; if (this.life <= 0) this.active = false; }
     draw() {
         if (!this.active) return;
         const s = { x: this.x - gameState.camera.x, y: this.y - gameState.camera.y };
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, this.life / 0.6);
-        ctx.fillStyle = this.color;
-        ctx.font = "bold 16px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(this.text, s.x, s.y);
-        ctx.restore();
+        ctx.save(); ctx.globalAlpha = Math.max(0, this.life / 0.6); ctx.fillStyle = this.color;
+        ctx.font = "bold 16px Arial"; ctx.textAlign = "center"; ctx.fillText(this.text, s.x, s.y); ctx.restore();
     }
 }
 
@@ -101,7 +91,6 @@ class Player extends Entity {
         updateUI();
     }
     draw() {
-        if (!this.active && gameState.running) return; // 只有在遊戲運行且不活躍時才不畫 (這行要小心)
         const s = this.getScreenPos(); ctx.save();
         if (this.flashFrames > 0) { ctx.fillStyle = '#ffffff'; this.flashFrames--; }
         else { ctx.shadowBlur = 15; ctx.shadowColor = '#4ade80'; ctx.fillStyle = '#4ade80'; }
@@ -115,41 +104,24 @@ class Enemy extends Entity {
     update(px, py, dt) {
         if (!this.active) return;
         const dx = px - this.x, dy = py - this.y, d = Math.sqrt(dx * dx + dy * dy);
-        if (d > 0) {
-            this.x += (dx / d) * this.speed * dt;
-            this.y += (dy / d) * this.speed * dt;
-        }
+        if (d > 0) { this.x += (dx / d) * this.speed * dt; this.y += (dy / d) * this.speed * dt; }
         if (this.flashFrames > 0) this.flashFrames--;
         if (d > 2000) this.active = false;
     }
     draw() {
-        if (!this.active) return; // 重要修正：不活躍就不繪製
+        if (!this.active) return;
         const s = this.getScreenPos();
         if (s.x < 0 || s.x > canvas.width || s.y < 0 || s.y > canvas.height) return;
         ctx.fillStyle = this.flashFrames > 0 ? '#ffffff' : '#ef4444';
         ctx.beginPath(); ctx.arc(s.x, s.y, this.radius, 0, Math.PI * 2); ctx.fill();
     }
-    takeDamage(dmg) {
-        this.hp -= dmg; this.flashFrames = 5;
-        spawnDamageText(this.x, this.y, dmg, "#ffffff");
-        if (this.hp <= 0) { this.active = false; return true; }
-        return false;
-    }
+    takeDamage(dmg) { this.hp -= dmg; this.flashFrames = 5; spawnDamageText(this.x, this.y, dmg, "#ffffff"); if (this.hp <= 0) { this.active = false; return true; } return false; }
 }
 
 class Bullet extends Entity {
     constructor() { super(); this.radius = 5; this.vx = 0; this.vy = 0; this.spawnTime = 0; this.damage = 1; }
-    update(dt) {
-        if (!this.active) return;
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
-        if (Date.now() - this.spawnTime > 3000) this.active = false;
-    }
-    draw() {
-        if (!this.active) return; // 重要修正
-        const s = this.getScreenPos(); ctx.fillStyle = '#60a5fa';
-        ctx.beginPath(); ctx.arc(s.x, s.y, this.radius, 0, Math.PI * 2); ctx.fill();
-    }
+    update(dt) { if (!this.active) return; this.x += this.vx * dt; this.y += this.vy * dt; if (Date.now() - this.spawnTime > 3000) this.active = false; }
+    draw() { if (!this.active) return; const s = this.getScreenPos(); ctx.fillStyle = '#60a5fa'; ctx.beginPath(); ctx.arc(s.x, s.y, this.radius, 0, Math.PI * 2); ctx.fill(); }
 }
 
 class Boomerang extends Entity {
@@ -160,20 +132,16 @@ class Boomerang extends Entity {
     }
     update(px, py, dt) {
         if (!this.active) return;
-        if (!this.returning) {
-            this.x += this.vx * dt; this.y += this.vy * dt;
-            if (Math.sqrt((this.x - px)**2 + (this.y - py)**2) > this.returnThreshold) this.returning = true;
-        } else {
+        if (!this.returning) { this.x += this.vx * dt; this.y += this.vy * dt; if (Math.sqrt((this.x - px)**2 + (this.y - py)**2) > this.returnThreshold) this.returning = true; }
+        else {
             const dx = px - this.x, dy = py - this.y, d = Math.sqrt(dx * dx + dy * dy);
-            const speed = CONFIG.BOOMERANG_SPEED * 1.5;
-            this.vx = (dx / d) * speed; this.vy = (dy / d) * speed;
-            this.x += this.vx * dt; this.y += this.vy * dt;
+            const speed = CONFIG.BOOMERANG_SPEED * 1.5; this.vx = (dx / d) * speed; this.vy = (dy / d) * speed; this.x += this.vx * dt; this.y += this.vy * dt;
             if (d < 30) this.active = false;
         }
-        this.rotation += 18 * dt; // 旋轉也要配 dt
+        this.rotation += 18 * dt;
     }
     draw() {
-        if (!this.active) return; // 重要修正
+        if (!this.active) return;
         const s = this.getScreenPos(); ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(this.rotation);
         ctx.fillStyle = '#a855f7'; ctx.shadowBlur = 10; ctx.shadowColor = '#a855f7';
         const sc = this.radius / 10; ctx.beginPath(); ctx.moveTo(-15*sc, -5*sc); ctx.lineTo(0, 15*sc); ctx.lineTo(15*sc, -5*sc); ctx.lineTo(0, 5*sc); ctx.closePath(); ctx.fill(); ctx.restore();
@@ -238,11 +206,7 @@ function fireBullet() {
     activeEnemies.forEach(e => { if (e.active && e.isOnScreen()) { const d = Math.sqrt((e.x - player.x)**2 + (e.y - player.y)**2); if (d < minDist) { minDist = d; closest = e; } } });
     if (closest) {
         const b = bulletPool.get();
-        if (b) {
-            b.x = player.x; b.y = player.y; b.spawnTime = Date.now();
-            const dx = closest.x - player.x, dy = closest.y - player.y, d = Math.sqrt(dx * dx + dy * dy);
-            b.vx = (dx / d) * CONFIG.BULLET_SPEED; b.vy = (dy / d) * CONFIG.BULLET_SPEED; activeBullets.push(b);
-        }
+        if (b) { b.x = player.x; b.y = player.y; b.spawnTime = Date.now(); const dx = closest.x - player.x, dy = closest.y - player.y, d = Math.sqrt(dx * dx + dy * dy); b.vx = (dx / d) * CONFIG.BULLET_SPEED; b.vy = (dy / d) * CONFIG.BULLET_SPEED; activeBullets.push(b); }
     }
 }
 function fireBoomerang() {
@@ -256,14 +220,8 @@ function fireBoomerang() {
     activeBoomerangs.push(b);
 }
 function checkCollisions() {
-    activeBullets.forEach(b => {
-        if (!b.active) return;
-        activeEnemies.forEach(e => { if (e.active && Math.sqrt((b.x - e.x)**2 + (b.y - e.y)**2) < b.radius + e.radius) { b.active = false; if (e.takeDamage(b.damage)) { gameState.kills++; spawnXP(e.x, e.y); } } });
-    });
-    activeBoomerangs.forEach(b => {
-        if (!b.active) return;
-        activeEnemies.forEach(e => { if (e.active && Math.sqrt((b.x - e.x)**2 + (b.y - e.y)**2) < b.radius + e.radius) { if (e.takeDamage(b.damage)) { gameState.kills++; spawnXP(e.x, e.y); } } });
-    });
+    activeBullets.forEach(b => { if (b.active) { activeEnemies.forEach(e => { if (e.active && Math.sqrt((b.x - e.x)**2 + (b.y - e.y)**2) < b.radius + e.radius) { b.active = false; if (e.takeDamage(b.damage)) { gameState.kills++; spawnXP(e.x, e.y); } } }); } });
+    activeBoomerangs.forEach(b => { if (b.active) { activeEnemies.forEach(e => { if (e.active && Math.sqrt((b.x - e.x)**2 + (b.y - e.y)**2) < b.radius + e.radius) { if (e.takeDamage(b.damage)) { gameState.kills++; spawnXP(e.x, e.y); } } }); } });
     activeEnemies.forEach(e => { if (e.active && Math.sqrt((player.x - e.x)**2 + (player.y - e.y)**2) < player.radius + e.radius) player.takeDamage(1); });
     activeXPGems.forEach(g => { if (g.active && Math.sqrt((g.x - player.x)**2 + (g.y - player.y)**2) < CONFIG.XP_COLLECT_DIST) { g.active = false; gainExp(g.value); } });
 }
@@ -280,7 +238,7 @@ function showUpgradeMenu() {
     });
 }
 function applyUpgrade(id) {
-    if (id === 'speed') CONFIG.PLAYER_SPEED += 24; if (id === 'kunai') { CONFIG.FIRE_RATE *= 0.85; CONFIG.BULLET_SPEED += 48; } if (id === 'magnet') CONFIG.XP_ATTRACT_DIST += 50; if (id === 'boomerang') { gameState.hasBoomerang = true; gameState.boomerangLevel++; }
+    if (id === 'speed') CONFIG.PLAYER_SPEED += 30; if (id === 'kunai') { CONFIG.FIRE_RATE *= 0.85; CONFIG.BULLET_SPEED += 40; } if (id === 'magnet') CONFIG.XP_ATTRACT_DIST += 50; if (id === 'boomerang') { gameState.hasBoomerang = true; gameState.boomerangLevel++; }
 }
 function updateUI() {
     document.getElementById('level-value').innerText = gameState.level; document.getElementById('kill-count').innerText = `擊殺: ${gameState.kills}`; document.getElementById('exp-bar-fill').style.width = `${(gameState.exp / gameState.nextLevelExp) * 100}%`; document.getElementById('hp-bar-fill').style.width = `${(player.hp / CONFIG.PLAYER_MAX_HP) * 100}%`;
@@ -292,63 +250,30 @@ function resetGameState() {
     player.reset(); enemyPool.releaseAll(); bulletPool.releaseAll(); boomerangPool.releaseAll(); xpPool.releaseAll(); damageTextPool.releaseAll(); activeEnemies = []; activeBullets = []; activeBoomerangs = []; activeXPGems = []; activeDamageTexts = []; updateUI();
 }
 function startGame(isMobile) {
-    if (isMobile) {
-        const c = document.getElementById('game-container'); if (c.requestFullscreen) c.requestFullscreen(); else if (c.webkitRequestFullscreen) c.webkitRequestFullscreen();
-    }
+    if (isMobile) { const c = document.getElementById('game-container'); if (c.requestFullscreen) c.requestFullscreen(); else if (c.webkitRequestFullscreen) c.webkitRequestFullscreen(); }
     document.getElementById('start-screen').classList.add('hidden'); document.getElementById('game-over-menu').classList.add('hidden'); resetGameState();
     gameState.lastFrameTime = performance.now(); player.active = true; gameState.running = true;
+    setTimeout(resize, 100); // 確保全螢幕後重新調整畫布
 }
 document.getElementById('pc-start-button').onclick = () => startGame(false);
 document.getElementById('mobile-start-button').onclick = () => startGame(true);
-document.getElementById('restart-button').onclick = () => startGame(false); // 預設不再重複進入全螢幕
+document.getElementById('restart-button').onclick = () => startGame(false);
 
 let lastFire = 0, lastBoomerangFire = 0, lastSpawnAttempt = 0, lastTimeUpdate = 0;
-
 function gameLoop(timestamp) {
-    // 計算 Delta Time
-    const dt = (timestamp - gameState.lastFrameTime) / 1000;
-    gameState.lastFrameTime = timestamp;
-
+    const dt = (timestamp - gameState.lastFrameTime) / 1000; gameState.lastFrameTime = timestamp;
     ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
     if (gameState.running && !gameState.upgradeMenuOpen) {
-        // 使用 dt 計算位移
-        player.x += joystickData.x * CONFIG.PLAYER_SPEED * dt;
-        player.y += joystickData.y * CONFIG.PLAYER_SPEED * dt;
-        gameState.camera.x = player.x - canvas.width / 2;
-        gameState.camera.y = player.y - canvas.height / 2;
-        
-        if (timestamp - lastTimeUpdate > 1000) { 
-            gameState.time++; lastTimeUpdate = timestamp; 
-            gameState.currentSpawnChance = Math.min(CONFIG.MAX_SPAWN_CHANCE, CONFIG.INITIAL_SPAWN_CHANCE + Math.floor(gameState.time / 10) * CONFIG.CHANCE_INC_PER_10S);
-            updateUI(); 
-        }
-        if (timestamp - lastSpawnAttempt > CONFIG.SPAWN_INTERVAL) {
-            if (Math.random() < gameState.currentSpawnChance) {
-                const r = Math.random(), c = r < 0.1 ? 5 : (r < 0.3 ? 3 : 1);
-                for (let i = 0; i < c; i++) spawnEnemy();
-            }
-            lastSpawnAttempt = timestamp;
-        }
+        player.x += joystickData.x * CONFIG.PLAYER_SPEED * dt; player.y += joystickData.y * CONFIG.PLAYER_SPEED * dt;
+        gameState.camera.x = player.x - canvas.width / 2; gameState.camera.y = player.y - canvas.height / 2;
+        if (timestamp - lastTimeUpdate > 1000) { gameState.time++; lastTimeUpdate = timestamp; gameState.currentSpawnChance = Math.min(CONFIG.MAX_SPAWN_CHANCE, CONFIG.INITIAL_SPAWN_CHANCE + Math.floor(gameState.time / 10) * CONFIG.CHANCE_INC_PER_10S); updateUI(); }
+        if (timestamp - lastSpawnAttempt > CONFIG.SPAWN_INTERVAL) { if (Math.random() < gameState.currentSpawnChance) { const r = Math.random(), c = r < 0.1 ? 5 : (r < 0.3 ? 3 : 1); for (let i = 0; i < c; i++) spawnEnemy(); } lastSpawnAttempt = timestamp; }
         if (timestamp - lastFire > CONFIG.FIRE_RATE) { fireBullet(); lastFire = timestamp; }
         if (timestamp - lastBoomerangFire > CONFIG.BOOMERANG_FIRE_RATE) { fireBoomerang(); lastBoomerangFire = timestamp; }
-
-        activeEnemies.forEach(e => e.update(player.x, player.y, dt));
-        activeBullets.forEach(b => b.update(dt));
-        activeBoomerangs.forEach(b => b.update(player.x, player.y, dt));
-        activeXPGems.forEach(g => g.update(player.x, player.y, dt));
-        activeDamageTexts.forEach(t => t.update(dt));
+        activeEnemies.forEach(e => e.update(player.x, player.y, dt)); activeBullets.forEach(b => b.update(dt)); activeBoomerangs.forEach(b => b.update(player.x, player.y, dt)); activeXPGems.forEach(g => g.update(player.x, player.y, dt)); activeDamageTexts.forEach((t, i) => { if (t.active) t.update(dt); else activeDamageTexts.splice(i, 1); });
         checkCollisions();
     }
-    drawBackground();
-    activeXPGems.forEach(g => g.draw());
-    activeBullets.forEach(b => b.draw());
-    activeBoomerangs.forEach(b => b.draw());
-    activeEnemies.forEach(e => e.draw());
-    activeDamageTexts.forEach(t => t.draw());
-    player.draw();
-    requestAnimationFrame(gameLoop);
+    drawBackground(); activeXPGems.forEach(g => g.draw()); activeBullets.forEach(b => b.draw()); activeBoomerangs.forEach(b => b.draw()); activeEnemies.forEach(e => e.draw()); activeDamageTexts.forEach(t => t.draw()); player.draw(); requestAnimationFrame(gameLoop);
 }
-
 window.addEventListener('load', () => { resize(); setupControls(); requestAnimationFrame(gameLoop); });
 window.addEventListener('resize', resize);

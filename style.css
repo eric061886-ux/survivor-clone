@@ -24,6 +24,25 @@ body {
     flex-direction: column;
 }
 
+/* 電腦版優化：限制寬度與比例 */
+@media (min-width: 768px) {
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #020617; /* 外部更暗 */
+    }
+    #game-container {
+        width: 450px;
+        height: 850px;
+        max-height: 95vh;
+        border: 4px solid #1e293b;
+        border-radius: 30px;
+        overflow: hidden;
+        box-shadow: 0 0 100px rgba(0,0,0,0.8);
+    }
+}
+
 canvas {
     display: block;
 }
