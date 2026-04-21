@@ -23,7 +23,7 @@ const CONFIG = {
     XP_ATTRACT_DIST: 100,
     XP_COLLECT_DIST: 20,
     GRID_SIZE: 100,
-    MONSTER_HP: 3
+    MONSTER_HP: 2
 };
 
 // --- 狀態管理 ---
