@@ -1,6 +1,6 @@
 /**
  * 噠噠特工練習生 - Core Game Logic
- * 更新：平衡性微調 - 子彈降速, 角色提速, 電腦版比例優化
+ * 更新：縮小生成範圍, 穩定 DeltaTime (防止瞬移)
  */
 
 const canvas = document.getElementById('gameCanvas');
@@ -8,13 +8,13 @@ const ctx = canvas.getContext('2d');
 
 // --- 遊戲設定 ---
 const CONFIG = {
-    PLAYER_SPEED: 200,         // 提速：從 144 -> 200
+    PLAYER_SPEED: 180,
     PLAYER_MAX_HP: 10,
     PLAYER_HIT_COOLDOWN: 200, 
-    ENEMY_BASE_SPEED: 54,
-    BULLET_SPEED: 220,         // 降速：從 345 -> 220
+    ENEMY_BASE_SPEED: 60,
+    BULLET_SPEED: 200,         // 再微調慢一點點
     FIRE_RATE: 800,
-    BOOMERANG_SPEED: 300,      // 稍微降一點
+    BOOMERANG_SPEED: 280,
     BOOMERANG_FIRE_RATE: 2000,
     SPAWN_INTERVAL: 1000,
     INITIAL_SPAWN_CHANCE: 0.5,
@@ -56,7 +56,7 @@ class ObjectPool {
     releaseAll() { this.pool.forEach(o => o.active = false); }
 }
 
-// --- 傷害數字系統 ---
+// --- 傷害數字 ---
 class DamageText {
     constructor() { this.x = 0; this.y = 0; this.text = ""; this.color = "#fff"; this.active = false; this.life = 0; }
     spawn(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.active = true; this.life = 0.6; }
@@ -69,13 +69,13 @@ class DamageText {
     }
 }
 
-// --- 實體類別 ---
+// --- 實體 ---
 class Entity {
     constructor() { this.x = 0; this.y = 0; this.radius = 10; this.active = false; }
     getScreenPos() { return { x: this.x - gameState.camera.x, y: this.y - gameState.camera.y }; }
     isOnScreen() {
         const s = this.getScreenPos();
-        return s.x >= -100 && s.x <= canvas.width + 100 && s.y >= -100 && s.y <= canvas.height + 100;
+        return s.x >= -50 && s.x <= canvas.width + 50 && s.y >= -50 && s.y <= canvas.height + 50;
     }
 }
 
@@ -154,7 +154,7 @@ class XPGem extends Entity {
     draw() { if (!this.active) return; const s = this.getScreenPos(); ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.rect(s.x - 4, s.y - 4, 8, 8); ctx.fill(); }
 }
 
-// --- 初始化系統 ---
+// --- 初始化 ---
 const player = new Player();
 const enemyPool = new ObjectPool(() => new Enemy(), 500);
 const bulletPool = new ObjectPool(() => new Bullet(), 100);
@@ -173,7 +173,7 @@ function drawBackground() {
     for (let y = oy; y < canvas.height; y += CONFIG.GRID_SIZE) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
 }
 
-// --- 控制系統 ---
+// --- 控制 ---
 const joystickBase = document.getElementById('joystick-base'), joystickStick = document.getElementById('joystick-stick');
 let joystickActive = false, joystickData = { x: 0, y: 0 };
 function setupControls() {
@@ -193,11 +193,13 @@ function setupControls() {
 }
 function resize() { const c = document.getElementById('game-container'); canvas.width = c.clientWidth; canvas.height = c.clientHeight; }
 
-// --- 核心邏輯 ---
+// --- 邏輯 ---
 function spawnEnemy() {
     if (gameState.upgradeMenuOpen) return;
     const e = enemyPool.get(); if (!e) return;
-    const ang = Math.random() * Math.PI * 2, dist = Math.max(canvas.width, canvas.height) * 0.7;
+    const ang = Math.random() * Math.PI * 2;
+    // 修正生成範圍：改為固定在螢幕外一點點
+    const dist = Math.max(canvas.width, canvas.height) / 2 + 60;
     e.x = player.x + Math.cos(ang) * dist; e.y = player.y + Math.sin(ang) * dist; activeEnemies.push(e);
 }
 function fireBullet() {
@@ -253,7 +255,7 @@ function startGame(isMobile) {
     if (isMobile) { const c = document.getElementById('game-container'); if (c.requestFullscreen) c.requestFullscreen(); else if (c.webkitRequestFullscreen) c.webkitRequestFullscreen(); }
     document.getElementById('start-screen').classList.add('hidden'); document.getElementById('game-over-menu').classList.add('hidden'); resetGameState();
     gameState.lastFrameTime = performance.now(); player.active = true; gameState.running = true;
-    setTimeout(resize, 100); // 確保全螢幕後重新調整畫布
+    setTimeout(resize, 100);
 }
 document.getElementById('pc-start-button').onclick = () => startGame(false);
 document.getElementById('mobile-start-button').onclick = () => startGame(true);
@@ -261,7 +263,11 @@ document.getElementById('restart-button').onclick = () => startGame(false);
 
 let lastFire = 0, lastBoomerangFire = 0, lastSpawnAttempt = 0, lastTimeUpdate = 0;
 function gameLoop(timestamp) {
-    const dt = (timestamp - gameState.lastFrameTime) / 1000; gameState.lastFrameTime = timestamp;
+    // 限制最大 dt (0.1秒)，防止瞬移與速度失控
+    let dt = (timestamp - gameState.lastFrameTime) / 1000;
+    if (dt > 0.1) dt = 0.1; 
+    gameState.lastFrameTime = timestamp;
+
     ctx.fillStyle = '#1e293b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (gameState.running && !gameState.upgradeMenuOpen) {
         player.x += joystickData.x * CONFIG.PLAYER_SPEED * dt; player.y += joystickData.y * CONFIG.PLAYER_SPEED * dt;
